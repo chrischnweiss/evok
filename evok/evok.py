@@ -237,6 +237,53 @@ class RestHandler(UserCookieHelper, tornado.web.RequestHandler):
         self.finish()
 
 
+class LoxoneRestHandler(UserCookieHelper, tornado.web.RequestHandler):
+    def initialize(self):
+        enable_cors(self)
+
+    # usage: GET /rest/DEVICE/CIRCUIT
+    #        or
+    #        GET /rest/DEVICE/CIRCUIT/PROPERTY
+
+    '''
+    @tornado.web.authenticated
+    def get(self, dev, circuit, prop, value):
+        #print "%s-%s-%s" %(dev,circuit,prop)
+        device = Devices.by_name(dev, circuit)
+        if prop:
+            if prop[0] in ('_'): raise Exception('Invalid property name')
+            result = {prop: getattr(device, prop)}
+        else:
+            result = device.full()
+        self.write(json.dumps(result))
+        self.finish()
+    '''
+
+    # usage: POST /rest/DEVICE/CIRCUIT
+    #          post-data: prop1=value1&prop2=value2...
+
+    #@tornado.web.authenticated
+    @tornado.gen.coroutine
+    #def post(self, dev, circuit, prop, value):
+    def get(self, dev, circuit, value):
+        try:
+            #print "%s-%s-%s" %(dev,circuit,prop)
+            device = Devices.by_name(dev, circuit)
+            #kw = dict([(k, v[0]) for (k, v) in self.request.body_arguments.iteritems()])
+            if value == "on":
+                result = device.set(1)
+            elif value == "off":
+                result = device.set(0)
+            #result = device.set(**kw)
+            if is_future(result):
+                result = yield result
+            #print result
+            self.write(json.dumps({'success': True, 'result': result}))
+        except Exception, E:
+            self.write(json.dumps({'success': False, 'errors': {'__all__': str(E)}}))
+        self.finish()
+
+
 class RemoteCMDHandler(UserCookieHelper, tornado.web.RequestHandler): # ToDo CHECK
     def initialize(self):
         enable_cors(self)
@@ -435,6 +482,7 @@ def main():
             (r"/config/cmd", RemoteCMDHandler),
             (r"/rest/all/?", LoadAllHandler),
             (r"/rest/([^/]+)/([^/]+)/?(.+)?", RestHandler),
+            (r"/loxone/([^/]+)/([^/]+)/?(.+)?", LoxoneRestHandler),
             (r"/ws", WsHandler),
             #(r"/.*", web.RedirectHandler, {"url": "http://%s/" % webname }),
         ],
